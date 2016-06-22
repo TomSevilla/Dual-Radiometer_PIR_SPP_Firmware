@@ -2,70 +2,563 @@
 // Dual Radiometer_PIR_SPP_Firmware
 //
 // Dual Radiometer_PIR_SPP
-// Developed with [embedXcode](http://embedXcode.weebly.com)
 //
 // Author 		Thomas Sevilla
 // 				Thomas Sevilla
 //
 // Date			6/16/16 9:11 AM
-// Version		<#version#>
+// Version		1.0
 //
 // Copyright	© Thomas Sevilla, 2016
-// Licence		<#licence#>
 //
-// See         ReadMe.txt for references
 //
 
+//Radiometer code FINAL- TOM
 
-// Core library for code-sense - IDE-based
-#if defined(WIRING) // Wiring specific
-    #include "Wiring.h"
-#elif defined(MAPLE_IDE) // Maple specific
-    #include "WProgram.h"
-#elif defined(MPIDE) // chipKIT specific
-    #include "WProgram.h"
-#elif defined(DIGISPARK) // Digispark specific
-    #include "Arduino.h"
-#elif defined(ENERGIA) // LaunchPad specific
-    #include "Energia.h"
-#elif defined(LITTLEROBOTFRIENDS) // LittleRobotFriends specific
-    #include "LRF.h"
-#elif defined(MICRODUINO) // Microduino specific
-    #include "Arduino.h"
-#elif defined(SPARK) || defined(PARTICLE) // Particle / Spark specific
-    #include "Arduino.h"
-#elif defined(TEENSYDUINO) // Teensy specific
-    #include "Arduino.h"
-#elif defined(REDBEARLAB) // RedBearLab specific
-    #include "Arduino.h"
-#elif defined(ESP8266) // ESP8266 specific
-    #include "Arduino.h"
-#elif defined(ARDUINO) // Arduino 1.0 and 1.5 specific
-    #include "Arduino.h"
-#else // error
-    #error Platform not defined
-#endif // end IDE
+/*Included Libraries*/
+#include "SPI.h"
+#include <SD.h>
+#include <virtuabotixRTC.h>
+#include <math.h>
+#include <SoftwareSerial.h>
+#include <EEPROM.h>
+/*------------------*/
 
-// Set parameters
+/*Global Variables*/
+
+#define RTC_CLK 6
+#define IO 7
+#define CE 8
+
+#define sensorOne 9 //Radiometer One PSP
+#define sensorTwo 12 //PIR Radiometer
+#define sensorThree 4 //Dome resistance
+#define sensorFour 5 //Case Resistance
+#define fan 46  //Fan activate
+#define chipSelect  48 //SD Card CS
+#define TempSensor 6
+
+const unsigned int MAX_INPUT = 50;
+
+double v_ref = 5.0;
+double input_one = 0.0;
+double input_two = 0.0;
+double temp1,temp2=0.0;
+double SumOne = 0;
+double SumTwo = 0;
+double SumThree,SumFour =0.0;
+double cal1;
+double cal2;
+double avg1 = 0;
+double avg2 = 0;
+double TempAvg1,TempAvg2=0.0;
+double gain1 = 0.0; //MUST SET THIS
+double gain2 = 0.0; //MUST SET THIS
+
+double C1=0.0010295;
+double C2=0.0002391;
+double C3=0.0000001568;
+double Coef1;
+double Coef2;
+double Coef3;
+
+float maxTemp= 0.0;
+float minTemp= 0.0;
 
 
-// Include application, user and local libraries
+char filename[] = {'L', 'O', 'G', 'G', 'E', 'R', '0', '0', '.', 'C', 'S', 'V', '\0'};
+File logfile;
 
+int serialInput;
+int inData;
+int _year;
+int _month;
+int _day;
+int _dayWeek;
+int _hr;
+int _min;
+int _sec;
+int counter = 0; //NEEDS TO BE CHANGED
+/*------------------*/
 
-// Prototypes
+SoftwareSerial wirelessSerial(11, 10); // RX, TX 10,11
+SoftwareSerial wiredSerial(1, 0); // RX, TX
+virtuabotixRTC myRTC(RTC_CLK, IO, CE);
 
-
-// Define variables and constants
-
-
-// Add setup code
-void setup()
-{
-    ;
+void splash() {
+    wiredSerial.println("                                               *-------------------------------*");
+    wiredSerial.println("                                               | Welcome to the NOAA/AOML/PHOD |");
+    wiredSerial.println("                                               | Dual Radiometer setup, please |");
+    wiredSerial.println("                                               | Follow the onscreen prompts to|");
+    wiredSerial.println("                                               |   Set the Real time Clock     |");
+    wiredSerial.println("                                               *-------------------------------*");
+    wiredSerial.println(" ");
+    wiredSerial.println(" ");
 }
 
-// Add loop code
-void loop()
+void initSD() {
+    wiredSerial.print("Initializing SD card...");
+    
+    
+    if (!SD.begin(chipSelect)) {
+        wiredSerial.println("Card failed, or not present");
+        return;
+    } else {
+        wiredSerial.println("Card Initialized.");
+    }
+    
+    for (uint8_t i = 0; i < 100; i++) {
+        filename[6] = i / 10 + '0';
+        filename[7] = i % 10 + '0';
+        if (! SD.exists(filename)) {
+            // only open a new file if it doesn't exist
+            logfile = SD.open(filename, FILE_WRITE);
+            break;  // leave the loop!
+        }
+        
+    }
+}
+
+double correction(double input){
+    
+    double corrected = (Coef1*pow(input,2))+(Coef2*input)+Coef3;
+
+}
+
+void recover_values()
 {
-    ;
+}
+
+double meassure(int chip) {
+    
+    double volt;
+    long int result = 0;
+    byte sig = 0;
+    byte b;
+    
+    digitalWrite(chip, LOW);
+    
+    if (!bit_is_set(PINB, PB3)) {
+        
+        b = SPI.transfer(0xFF);            // read 4 bytes adc raw data with SPI
+        if ((b & 0x20) == 0) {           // is input negative ?
+            sig = 1;
+        }
+        
+        b &= 0x1F;                  // discard bit 27..31
+        result |= b;
+        result <<= 8;
+        b = SPI.transfer(0xFF);
+        result |= b;
+        result <<= 8;
+        b = SPI.transfer(0xFF);
+        result |= b;
+        result <<= 8;
+        b = SPI.transfer(0xFF);
+        result |= b;
+        
+        delayMicroseconds(200);
+        
+        digitalWrite(chip, LOW);
+        delay(200);
+        
+        if (sig) {  // if input negative insert sign bit
+            result |= 0xf0000000;
+        }
+        
+        result = result / 16; // scale result down , last 4 bits have no information
+        
+        
+        volt = (result * v_ref ) / 16777216; // max scale
+    }
+    digitalWrite(chip, HIGH);
+    delay(20);
+    volt=20; //TAKE THIS OUT BEFORE!!!!!!!
+    return volt;
+    
+}
+
+void save_values(int flag){
+    int isDone = flag;
+    
+    
+    
+    if(isDone){
+    //Go To read values and verify
+        // run the rest of the software
+    }
+}
+
+void calibrate(){
+    int i=0;
+    float volt_wanted=0.00;
+    int AD_num=1;
+    
+    wiredSerial.println("WARNING!!!!! YOU'VE ENTERED CALIBRATION MODE, THIS WILL OVERWRITE CAL. COEFs.!!!!");
+    wiredSerial.println("MUST ONLY BE DONE ONCE");
+    wiredSerial.println("*********************************************************************************");
+    wiredSerial.println("\n");
+    
+    wiredSerial.println("Starting Calibration for A/D #1 obtaining 100 values type '1' to advance to the next sample");
+    wiredSerial.println("Set input volatge to the requested values:");
+    while(i<=100){
+        wiredSerial.print("Sample #");
+        wiredSerial.print(i);
+        wiredSerial.print(" should be: ");
+        wiredSerial.println(volt_wanted);
+        
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        int next = wirelessSerial.parseInt();
+        wiredSerial.print("Meassured Value was: ");
+        wiredSerial.println(meassure(sensorOne));
+        if(next == 1){
+        i++;
+            volt_wanted=volt_wanted+0.05;
+    }
+    }
+    i=0;
+    volt_wanted=0.00;
+    AD_num++;
+    
+    
+    wiredSerial.println("FINISHED CAL. FOR A/D #1!! ENTER VALUES INTO MATLAB SCRIPT!");
+     wiredSerial.println("TYPE 1 to Advance to coefficient saving");
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        int next = wirelessSerial.parseInt();
+        if(next == 1 && AD_num !=4){
+            save_values(0);
+        } else if (next == 1 && AD_num ==4)
+        {
+            save_values(1);
+        }
+    }
+
+
+void setRef_Radio() {
+    wiredSerial.println("Enter Vref value: ");
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    v_ref = wirelessSerial.parseFloat(); //Read the data the user has input
+    wiredSerial.println(v_ref);
+    
+    wiredSerial.println("Enter Calibration Coefficient for Radiometer 1: ");
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    cal1 = wirelessSerial.parseFloat(); //Read the data the user has input
+    wiredSerial.println(cal1);
+    
+    wiredSerial.println("Enter Calibration Coefficient for Radiometer 2: ");
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    cal2 = wirelessSerial.parseFloat(); //Read the data the user has input
+    wiredSerial.println(cal2);
+    
+    wiredSerial.println("Would you like to enter Calibration mode [Y=1/N=0]?? (WARNING THIS OVERWRITES CAL. DATA!!)");
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+     int input = wirelessSerial.parseInt(); //Read the data the user has input
+    if (input==1)
+    {
+        wiredSerial.println("GOING INTO CALIBRATION MODE!");
+      calibrate();
+    } else if (input==0)
+        
+    {
+        return;
+    }
+    
+    
+}
+
+void setRTC() {
+    wiredSerial.println("Enter the year (Format should be 20XX): ");
+    
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    
+    _year = wirelessSerial.parseInt(); //Read the data the user has input
+    
+        
+    if (_year == 999999) {
+        wiredSerial.println("!!!!!!!!!!IN TEST MODE!!!!!!!!!!!!");
+        _year = 2016;
+        _month = 4;
+        _day = 8;
+        _dayWeek = 5;
+        _hr = 12;
+        _min = 12;
+        _sec = 00;
+        v_ref = 5.00;
+        cal1 = 8.17;
+        cal2 = 8.17;
+    } else {
+        
+        wiredSerial.println(_year);
+        wiredSerial.println("Now, enter the month: ");
+ 
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        _month = wirelessSerial.parseInt(); //Read the data the user has input
+        
+        wiredSerial.println(_month);
+        
+        wiredSerial.println("Now, enter the day: ");
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+     
+        _day = wirelessSerial.parseInt(); //Read the data the user has input
+        wiredSerial.println(_day);
+        
+        wiredSerial.println("Now, enter the day of the week (Monday = 1, Tuesday =2 ...): ");
+       
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        _dayWeek = wirelessSerial.parseInt(); //Read the data the user has input
+        wiredSerial.println(_dayWeek);
+        
+        wiredSerial.println("Now, enter the Hour (24hr Format): ");
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+       
+        _hr = wirelessSerial.parseInt(); //Read the data the user has input
+        wiredSerial.println(_hr);
+        
+        wiredSerial.println("Now, enter the minutes: ");
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+      
+        _min = wirelessSerial.parseInt(); //Read the data the user has input
+        wiredSerial.println(_min);
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        wiredSerial.println("Now, enter seconds: ");
+       
+        _sec = wirelessSerial.parseInt(); //Read the data the user has input
+        wiredSerial.println(_sec);
+    
+        setRef_Radio();
+    }
+    
+    logfile = SD.open(filename, FILE_WRITE);
+    
+    if (logfile) {
+        char buf_log[70];
+        logfile.print("Deployment Date and Time: ");
+        sprintf(buf_log, ",%02d,%02d,%02d,%02d,%02d,%02d", _month, _day, _year, _hr, _min, _sec);
+        logfile.println(buf_log);
+        
+        char buf[70];
+        wiredSerial.print("Deployment Date and Time: ");
+        sprintf(buf, "%02d/%02d/%02d %02d:%02d:%02d", _month, _day, _year, _hr, _min, _sec);
+        wiredSerial.println(buf);
+        
+        wiredSerial.println("~~~~~~~~~~~STARTING MEASSURMENTS!~~~~~~~~~~");
+        wiredSerial.println("Month/Day/Year , Hour:Min:Sec , Measurment 1, Measurment 2 ");
+        logfile.println("Month,Day,Year,Hour,Min,Sec, Measurment 1, Measurment 2 ");
+        logfile.close();
+    } else {
+        wiredSerial.println("ERROR WHEN WRITING TO FILE");
+    }
+    myRTC.setDS1302Time(_sec, _min, _hr, _dayWeek, _day, _month, _year);
+}
+
+
+
+void PrintTime_Serial() {
+    char buf_serial[70];
+    sprintf(buf_serial, "%02d/%02d/%02d %02d:%02d:%02d", myRTC.month, myRTC.dayofmonth, myRTC.year, myRTC.hours, myRTC.minutes, myRTC.seconds);
+    wiredSerial.print(buf_serial);
+    wirelessSerial.print(buf_serial);
+}
+
+void PrintTime_File() {
+    char buf_log[70];
+    sprintf(buf_log, "%02d,%02d,%02d,%02d,%02d,%02d", myRTC.month, myRTC.dayofmonth, myRTC.year, myRTC.hours, myRTC.minutes, myRTC.seconds);
+    logfile.print(buf_log);
+}
+
+double calcWm2(double avg, double cal) {
+    cal = cal / 1000000;
+    double mV = (avg/gain1); //put in the gain that we have to remove
+    double irradiance = (mV / cal);
+    return irradiance;
+}
+
+double calcWm2_PIR(double avg, double cal) {
+    cal = cal / 1000000;
+    double mV = (avg/gain2); //300 is the gain that we have to remove
+    double irradiance = (mV / cal);
+    return irradiance;
+}
+
+void runFan() {
+    
+    digitalWrite(44, HIGH);
+}
+
+void stopFan(){
+    
+    digitalWrite(44, LOW);
+    
+}
+
+float readAmbTemp(){
+    int reading = analogRead(TempSensor);
+    float voltage = reading * 5.0;
+    voltage /= 1024.0;
+    float temperatureC = (voltage - 0.5) * 100 ;
+    return temperatureC;
+}
+
+int check_temp_board(float temp){
+   
+    if(temp>maxTemp)
+    {
+        runFan();
+        int tempFlag=1;
+        return(tempFlag);
+    } else if(temp<minTemp)
+    {
+        stopFan();
+        int tempFlag=0;
+        return(tempFlag);
+    }
+    
+    
+}
+
+float CalcResistance(float volt){
+
+    float resistance = volt/0.0001;
+}
+
+float checkTemp(float Res) {
+  
+    float T = 1/(C1+C2*log(Res)+C3*(pow(log(Res),3.0)));
+    return T;
+}
+
+void setTemp(){
+    wiredSerial.println("Would you like to set the operating tempereature dynamically? [Y/N]");
+    if (wirelessSerial.available() > 0) {
+        int inByte = wirelessSerial.read();
+        switch (inByte) {
+            case 'Y':
+            {
+                wiredSerial.println("Setting temperature to an operating range...");
+                float AmbTemp=readAmbTemp();
+                minTemp=AmbTemp-10;
+                maxTemp=AmbTemp+10;
+            }
+                break;
+            case 'N':
+            {
+                wiredSerial.println("Setting temperature to an operating range of 75-85F");
+                minTemp=20.00;
+                maxTemp =30.00;
+            }
+                break;
+        default:
+            {
+                wiredSerial.println("Setting temperature to an operating range of 75-85F");
+                minTemp=20.00;
+                maxTemp =30.00;
+                
+            }
+        }
+    }
+}
+
+void setup() {
+    
+    pinMode(sensorOne, OUTPUT);
+    pinMode(sensorTwo, OUTPUT);
+    pinMode(sensorThree, OUTPUT);
+    pinMode(sensorFour, OUTPUT);
+    pinMode(fan, OUTPUT);
+    
+    digitalWrite(sensorOne, HIGH);
+    digitalWrite(sensorTwo, HIGH);
+    digitalWrite(sensorThree, HIGH);
+    digitalWrite(sensorFour, HIGH);
+    
+    wiredSerial.begin(9600);
+    wirelessSerial.begin(9600);
+    
+    wiredSerial.setTimeout(10000);
+    wirelessSerial.setTimeout(10000);
+    
+    SPI.begin();
+    SPI.setDataMode(SPI_MODE0);
+    SPI.setBitOrder(MSBFIRST);
+    SPI.setClockDivider(SPI_CLOCK_DIV16);
+    
+    splash();
+    initSD();
+    setRTC();
+     //setTemp();
+    
+}
+
+unsigned int to_pre = (myRTC.seconds);
+unsigned int to_cur = to_pre;
+
+void loop() {
+    
+    myRTC.updateTime();
+    
+    to_cur = (myRTC.seconds);
+    
+    if ((to_cur - to_pre) >= 1) {
+        input_one = meassure(sensorOne);
+        SumOne += input_one;
+        
+        input_two = meassure(sensorTwo);
+        temp1=meassure(sensorThree);
+        temp2=meassure(sensorFour);
+        
+        SumTwo += input_two;
+        SumThree += temp1;
+        SumFour += temp2;
+        
+        counter++;
+        to_pre = to_cur;
+    }
+    
+    if (counter >= 60) {
+        logfile = SD.open(filename, FILE_WRITE);
+        
+        avg1 = SumOne / counter;
+        avg2 = SumTwo / counter;
+        TempAvg1 = SumThree / counter;
+        TempAvg2= SumFour / counter;
+        
+        PrintTime_Serial();
+        wiredSerial.print(" ");
+        wiredSerial.print(calcWm2(avg1, cal1), 4);
+        wirelessSerial.print(" ");
+        wirelessSerial.println(calcWm2(avg1, cal1), 2);
+        
+        
+        PrintTime_File();
+        logfile.print(",");
+        logfile.print(calcWm2(avg1, cal1), 4);
+        
+        
+        wiredSerial.print(" , ");
+        wiredSerial.print(" ");
+        wiredSerial.println(calcWm2_PIR(avg2, cal2), 4);
+        
+        logfile.print(",");
+        logfile.println(calcWm2_PIR(avg2, cal2), 4);
+        
+        
+        SumTwo = 0;
+        SumOne = 0;
+        counter = 0;
+        logfile.close();
+    }
+    
 }

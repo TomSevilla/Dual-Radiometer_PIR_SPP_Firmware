@@ -7,7 +7,6 @@
   Project Dual Radiometer_PIR_SPP_Firmware
   Created by Thomas Sevilla on 6/16/16
   Copyright © 2016 Thomas Sevilla
-  Licence <#licence#>
 
 
 

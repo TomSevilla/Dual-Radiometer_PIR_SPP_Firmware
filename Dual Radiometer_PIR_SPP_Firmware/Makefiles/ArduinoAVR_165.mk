@@ -142,6 +142,7 @@ avr165_20   += $(foreach dir,$(APP_LIB_PATH),$(patsubst %,$(dir)/%/src/utility,$
 avr165_20   += $(foreach dir,$(APP_LIB_PATH),$(patsubst %,$(dir)/%/src/arch/$(BUILD_CORE),$(APP_LIBS_LIST)))
 avr165_20   += $(foreach dir,$(APP_LIB_PATH),$(patsubst %,$(dir)/%/src/$(BUILD_CORE),$(APP_LIBS_LIST)))
 
+
 APP_LIB_CPP_SRC = $(foreach dir,$(avr165_20),$(wildcard $(dir)/*.cpp)) # */
 APP_LIB_C_SRC   = $(foreach dir,$(avr165_20),$(wildcard $(dir)/*.c)) # */
 APP_LIB_H_SRC   = $(foreach dir,$(avr165_20),$(wildcard $(dir)/*.h)) # */
