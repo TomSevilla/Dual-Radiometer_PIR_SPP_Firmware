@@ -22,6 +22,7 @@
 #include <math.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
+#include <stdlib.h>
 /*------------------*/
 
 /*Global Variables*/
@@ -52,15 +53,15 @@ double cal2;
 double avg1 = 0;
 double avg2 = 0;
 double TempAvg1,TempAvg2=0.0;
-double gain1 = 0.0; //MUST SET THIS
-double gain2 = 0.0; //MUST SET THIS
+
 
 double C1=0.0010295;
 double C2=0.0002391;
 double C3=0.0000001568;
-double Coef1;
-double Coef2;
-double Coef3;
+
+double Coef[14];
+double gain1;
+double gain2;
 
 float maxTemp= 0.0;
 float minTemp= 0.0;
@@ -68,6 +69,7 @@ float minTemp= 0.0;
 
 char filename[] = {'L', 'O', 'G', 'G', 'E', 'R', '0', '0', '.', 'C', 'S', 'V', '\0'};
 File logfile;
+File myFile;
 
 int serialInput;
 int inData;
@@ -79,6 +81,7 @@ int _hr;
 int _min;
 int _sec;
 int counter = 0; //NEEDS TO BE CHANGED
+int whichCoef;
 /*------------------*/
 
 SoftwareSerial wirelessSerial(11, 10); // RX, TX 10,11
@@ -94,6 +97,13 @@ void splash() {
     wiredSerial.println("                                               *-------------------------------*");
     wiredSerial.println(" ");
     wiredSerial.println(" ");
+    digitalWrite(fan, LOW);
+    
+    digitalWrite(sensorOne, HIGH);
+    digitalWrite(sensorTwo, HIGH);
+    digitalWrite(sensorThree, HIGH);
+    digitalWrite(sensorFour, HIGH);
+
 }
 
 void initSD() {
@@ -119,14 +129,88 @@ void initSD() {
     }
 }
 
-double correction(double input){
-    
-    double corrected = (Coef1*pow(input,2))+(Coef2*input)+Coef3;
-
+void read_cal_file(){
+    if (SD.exists("CAL.txt")){
+    // re-open the file for reading:
+    myFile = SD.open("CAL.txt",FILE_READ);
+    if (myFile) {
+        wiredSerial.println("CAL.txt:");
+        
+        // read from the file until there's nothing else in it:
+        while (myFile.available()) {
+            
+            Coef[whichCoef] = myFile.parseFloat();
+            wiredSerial.println(Coef[whichCoef], 6);
+            whichCoef++;
+        }
+        gain1=Coef[12];
+        gain2=Coef[13];
+        
+        // close the file:
+        myFile.close();
+    } else {
+        // if the file didn't open, print an error:
+        wiredSerial.println("error opening Cal.txt");
+    }
+    }
 }
 
-void recover_values()
-{
+double correction(double input,int AD_used){
+    
+    int index1,index2,index3;
+    
+    if(AD_used==1){
+       // wiredSerial.println("Correcting ADC 1");
+        index1=0;
+        index2=1;
+        index3=2;
+      
+       // wiredSerial.println("Using Coefs:");
+       // wiredSerial.print(Coef[index1]);
+       // wiredSerial.print(Coef[index2]);
+       // wiredSerial.print(Coef[index3]);
+        
+    } else if(AD_used==2){
+    
+       // wiredSerial.println("Correcting ADC 2");
+        index1=3;
+        index2=4;
+        index3=5;
+        
+       // wiredSerial.println("Using Coefs:");
+       // wiredSerial.print(Coef[index1]);
+       // wiredSerial.print(Coef[index2]);
+       // wiredSerial.print(Coef[index3]);
+        
+    } else if(AD_used==3){
+        
+       // wiredSerial.println("Correcting ADC 3");
+        index1=6;
+        index2=7;
+        index3=8;
+        
+       // wiredSerial.println("Using Coefs:");
+       // wiredSerial.print(Coef[index1]);
+       // wiredSerial.print(Coef[index2]);
+       // wiredSerial.print(Coef[index3]);
+    } else if(AD_used==4){
+        
+        //wiredSerial.println("Correcting ADC 4");
+        index1=9;
+        index2=10;
+        index3=11;
+        
+        //wiredSerial.println("Using Coefs:");
+        //wiredSerial.print(Coef[index1]);
+        //wiredSerial.print(Coef[index2]);
+        //wiredSerial.print(Coef[index3]);
+    }
+    
+    
+    double corrected = (Coef[index1]*pow(input,2))+(Coef[index2]*input)+Coef[index3];
+    wiredSerial.println("The corrected value is: ");
+    wiredSerial.println(corrected);
+
 }
 
 double meassure(int chip) {
@@ -173,20 +257,9 @@ double meassure(int chip) {
     }
     digitalWrite(chip, HIGH);
     delay(20);
-    volt=20; //TAKE THIS OUT BEFORE!!!!!!!
+    volt=1; //TAKE THIS OUT BEFORE!!!!!!!
     return volt;
     
-}
-
-void save_values(int flag){
-    int isDone = flag;
-    
-    
-    
-    if(isDone){
-    //Go To read values and verify
-        // run the rest of the software
-    }
 }
 
 void calibrate(){
@@ -194,14 +267,14 @@ void calibrate(){
     float volt_wanted=0.00;
     int AD_num=1;
     
-    wiredSerial.println("WARNING!!!!! YOU'VE ENTERED CALIBRATION MODE, THIS WILL OVERWRITE CAL. COEFs.!!!!");
+    wiredSerial.println("YOU'VE ENTERED CALIBRATION MODE!!!! -> MUST BE CONNECTED DIRECTLY TO ADC");
     wiredSerial.println("MUST ONLY BE DONE ONCE");
     wiredSerial.println("*********************************************************************************");
     wiredSerial.println("\n");
     
-    wiredSerial.println("Starting Calibration for A/D #1 obtaining 100 values type '1' to advance to the next sample");
+    wiredSerial.println("Starting Calibration for A/D #1 obtaining 50 values type '1' to advance to the next sample");
     wiredSerial.println("Set input volatge to the requested values:");
-    while(i<=100){
+    while(i<=50){
         wiredSerial.print("Sample #");
         wiredSerial.print(i);
         wiredSerial.print(" should be: ");
@@ -214,27 +287,77 @@ void calibrate(){
         wiredSerial.println(meassure(sensorOne));
         if(next == 1){
         i++;
-            volt_wanted=volt_wanted+0.05;
+            volt_wanted=volt_wanted+0.1;
     }
     }
     i=0;
     volt_wanted=0.00;
-    AD_num++;
     
-    
-    wiredSerial.println("FINISHED CAL. FOR A/D #1!! ENTER VALUES INTO MATLAB SCRIPT!");
-     wiredSerial.println("TYPE 1 to Advance to coefficient saving");
+    wiredSerial.println("Starting Calibration for A/D #2 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Set input volatge to the requested values:");
+    while(i<=50){
+        wiredSerial.print("Sample #");
+        wiredSerial.print(i);
+        wiredSerial.print(" should be: ");
+        wiredSerial.println(volt_wanted);
+        
         while (wirelessSerial.available() == 0) { // Wait for User to Input Data
         }
         int next = wirelessSerial.parseInt();
-        if(next == 1 && AD_num !=4){
-            save_values(0);
-        } else if (next == 1 && AD_num ==4)
-        {
-            save_values(1);
+        wiredSerial.print("Meassured Value was: ");
+        wiredSerial.println(meassure(sensorTwo));
+        if(next == 1){
+            i++;
+            volt_wanted=volt_wanted+0.1;
         }
     }
-
+    i=0;
+    volt_wanted=0.00;
+    
+    wiredSerial.println("Starting Calibration for A/D #3 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Set input volatge to the requested values:");
+    while(i<=50){
+        wiredSerial.print("Sample #");
+        wiredSerial.print(i);
+        wiredSerial.print(" should be: ");
+        wiredSerial.println(volt_wanted);
+        
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        int next = wirelessSerial.parseInt();
+        wiredSerial.print("Meassured Value was: ");
+        wiredSerial.println(meassure(sensorThree));
+        if(next == 1){
+            i++;
+            volt_wanted=volt_wanted+0.1;
+        }
+    }
+    i=0;
+    volt_wanted=0.00;
+    
+    wiredSerial.println("Starting Calibration for A/D #4 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Set input volatge to the requested values:");
+    while(i<=50){
+        wiredSerial.print("Sample #");
+        wiredSerial.print(i);
+        wiredSerial.print(" should be: ");
+        wiredSerial.println(volt_wanted);
+        
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+        }
+        int next = wirelessSerial.parseInt();
+        wiredSerial.print("Meassured Value was: ");
+        wiredSerial.println(meassure(sensorFour));
+        if(next == 1){
+            i++;
+            volt_wanted=volt_wanted+0.1;
+        }
+    }
+    i=0;
+    volt_wanted=0.00;
+    
+    
+    }
 
 void setRef_Radio() {
     wiredSerial.println("Enter Vref value: ");
@@ -255,22 +378,106 @@ void setRef_Radio() {
     cal2 = wirelessSerial.parseFloat(); //Read the data the user has input
     wiredSerial.println(cal2);
     
-    wiredSerial.println("Would you like to enter Calibration mode [Y=1/N=0]?? (WARNING THIS OVERWRITES CAL. DATA!!)");
+    wiredSerial.println("Would you like to enter Calibration mode [Y=1/N=0]??");
     while (wirelessSerial.available() == 0) { // Wait for User to Input Data
     }
      int input = wirelessSerial.parseInt(); //Read the data the user has input
     if (input==1)
     {
         wiredSerial.println("GOING INTO CALIBRATION MODE!");
-      calibrate();
+        calibrate();
+        wiredSerial.println("Enter Value on matlab script!!");
+        wiredSerial.println("PLEASE UPDATE THE CAL.txt file! and the restart board");
     } else if (input==0)
         
     {
-        return;
+        read_cal_file();
     }
     
     
 }
+
+void runFan() {
+    
+    digitalWrite(fan, HIGH);
+}
+
+void stopFan(){
+    
+    digitalWrite(fan, LOW);
+    
+}
+
+double readAmbTemp(){
+    
+    double reading=0;
+    
+    for(int i=0; i<=40; i++){
+        
+        reading += analogRead(TempSensor);
+    }
+    
+    reading = reading/40;
+    
+    float voltage = reading * 5.0;
+    voltage /= 1024.0;
+    float temperatureC = (voltage - 0.5) * 100 ;
+    return temperatureC;
+}
+
+int check_temp_board(){
+    
+    double reading=0;
+    
+    for(int i=0; i<=50; i++){
+        reading += analogRead(TempSensor);
+    }
+    
+    reading=reading/50;
+    
+    float voltage = reading * 5.0;
+    voltage /= 1024.0;
+    float temperatureC = (voltage - 0.5) * 100 ;
+    
+    if(temperatureC>maxTemp)
+    {
+        //wiredSerial.println(temperatureC);
+        runFan();
+        int tempFlag=1;
+        return tempFlag;
+    } else if(temperatureC<maxTemp)
+    {
+        stopFan();
+        //wiredSerial.println(temperatureC);
+        int tempFlag=0;
+        return tempFlag;
+    }
+}
+
+void setTemp(){
+    wiredSerial.println("Would you like to set the operating tempereature dynamically? [Y=1/N=0]");
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    int input = wirelessSerial.parseInt(); //Read the data the user has input
+    if (input==1)
+    {
+                wiredSerial.println("Setting temperature to an operating range +/-10C ...");
+                float AmbTemp=readAmbTemp();
+         wiredSerial.println("The Ambient Temp is:");
+        wiredSerial.println(AmbTemp,4);
+        
+         wiredSerial.println("The min and max are:");
+                minTemp=AmbTemp-5;
+                maxTemp=AmbTemp+5;
+        wiredSerial.println(minTemp,4);
+        wiredSerial.println(maxTemp,4);
+    }else
+            {
+                wiredSerial.println("Setting temperature to an operating range of 75-85F");
+                minTemp=18.00;
+                maxTemp =34.00;
+            }
+    }
 
 void setRTC() {
     wiredSerial.println("Enter the year (Format should be 20XX): ");
@@ -281,7 +488,7 @@ void setRTC() {
     _year = wirelessSerial.parseInt(); //Read the data the user has input
     
         
-    if (_year == 999999) {
+    if (_year == 9999) {
         wiredSerial.println("!!!!!!!!!!IN TEST MODE!!!!!!!!!!!!");
         _year = 2016;
         _month = 4;
@@ -354,6 +561,8 @@ void setRTC() {
         sprintf(buf, "%02d/%02d/%02d %02d:%02d:%02d", _month, _day, _year, _hr, _min, _sec);
         wiredSerial.println(buf);
         
+        setTemp();
+        
         wiredSerial.println("~~~~~~~~~~~STARTING MEASSURMENTS!~~~~~~~~~~");
         wiredSerial.println("Month/Day/Year , Hour:Min:Sec , Measurment 1, Measurment 2 ");
         logfile.println("Month,Day,Year,Hour,Min,Sec, Measurment 1, Measurment 2 ");
@@ -363,8 +572,6 @@ void setRTC() {
     }
     myRTC.setDS1302Time(_sec, _min, _hr, _dayWeek, _day, _month, _year);
 }
-
-
 
 void PrintTime_Serial() {
     char buf_serial[70];
@@ -383,50 +590,17 @@ double calcWm2(double avg, double cal) {
     cal = cal / 1000000;
     double mV = (avg/gain1); //put in the gain that we have to remove
     double irradiance = (mV / cal);
-    return irradiance;
+    return avg;
 }
 
-double calcWm2_PIR(double avg, double cal) {
+double calcWm2_PIR(double avg, double cal,double T1,double T2) {
+    double sigma = 5.6704e-8;
+    int k=4;
     cal = cal / 1000000;
     double mV = (avg/gain2); //300 is the gain that we have to remove
     double irradiance = (mV / cal);
+    irradiance=irradiance+sigma*pow(T1,4)-sigma*(pow(T2,4)-pow(T1,4));
     return irradiance;
-}
-
-void runFan() {
-    
-    digitalWrite(44, HIGH);
-}
-
-void stopFan(){
-    
-    digitalWrite(44, LOW);
-    
-}
-
-float readAmbTemp(){
-    int reading = analogRead(TempSensor);
-    float voltage = reading * 5.0;
-    voltage /= 1024.0;
-    float temperatureC = (voltage - 0.5) * 100 ;
-    return temperatureC;
-}
-
-int check_temp_board(float temp){
-   
-    if(temp>maxTemp)
-    {
-        runFan();
-        int tempFlag=1;
-        return(tempFlag);
-    } else if(temp<minTemp)
-    {
-        stopFan();
-        int tempFlag=0;
-        return(tempFlag);
-    }
-    
-    
 }
 
 float CalcResistance(float volt){
@@ -434,42 +608,45 @@ float CalcResistance(float volt){
     float resistance = volt/0.0001;
 }
 
-float checkTemp(float Res) {
+float realTemp(float Res) {
   
     float T = 1/(C1+C2*log(Res)+C3*(pow(log(Res),3.0)));
     return T;
 }
 
-void setTemp(){
-    wiredSerial.println("Would you like to set the operating tempereature dynamically? [Y/N]");
-    if (wirelessSerial.available() > 0) {
-        int inByte = wirelessSerial.read();
-        switch (inByte) {
-            case 'Y':
-            {
-                wiredSerial.println("Setting temperature to an operating range...");
-                float AmbTemp=readAmbTemp();
-                minTemp=AmbTemp-10;
-                maxTemp=AmbTemp+10;
-            }
-                break;
-            case 'N':
-            {
-                wiredSerial.println("Setting temperature to an operating range of 75-85F");
-                minTemp=20.00;
-                maxTemp =30.00;
-            }
-                break;
-        default:
-            {
-                wiredSerial.println("Setting temperature to an operating range of 75-85F");
-                minTemp=20.00;
-                maxTemp =30.00;
-                
-            }
+void testFan(){
+    int run=1;
+    
+    wiredSerial.println("Would you like to test the fan? [Y=1/N=0]");
+    
+    while (wirelessSerial.available() == 0) { // Wait for User to Input Data
+    }
+    int input = wirelessSerial.parseInt(); //Read the data the user has input
+    if (input==1)
+    {
+        while(run<5){
+        wiredSerial.println("Turn Fan on type 1, To turn Fan off type 0");
+        
+        while (wirelessSerial.available() == 0) { // Wait for User to Input Data
         }
+        int input = wirelessSerial.parseInt(); //Read the data the user has input
+        
+        if (input==1){
+        
+            digitalWrite(fan, HIGH);
+            run++;
+        }else if(input==0)
+        {
+            digitalWrite(fan, LOW);
+            run++;
+        }
+        }
+    }else
+    {
+        return;
     }
 }
+
 
 void setup() {
     
@@ -483,10 +660,11 @@ void setup() {
     digitalWrite(sensorTwo, HIGH);
     digitalWrite(sensorThree, HIGH);
     digitalWrite(sensorFour, HIGH);
+    digitalWrite(fan, HIGH);
     
     wiredSerial.begin(9600);
     wirelessSerial.begin(9600);
-    
+
     wiredSerial.setTimeout(10000);
     wirelessSerial.setTimeout(10000);
     
@@ -498,7 +676,13 @@ void setup() {
     splash();
     initSD();
     setRTC();
-     //setTemp();
+    testFan();
+    
+    wiredSerial.print("The Gain 1 value is : ");
+    wiredSerial.println(gain1);
+    
+    wiredSerial.print("The Gain 2 value is : ");
+    wiredSerial.println(gain2);
     
 }
 
@@ -516,11 +700,12 @@ void loop() {
         SumOne += input_one;
         
         input_two = meassure(sensorTwo);
-        temp1=meassure(sensorThree);
-        temp2=meassure(sensorFour);
-        
         SumTwo += input_two;
+        
+        temp1=meassure(sensorThree);
         SumThree += temp1;
+        
+        temp2=meassure(sensorFour);
         SumFour += temp2;
         
         counter++;
@@ -531,15 +716,28 @@ void loop() {
         logfile = SD.open(filename, FILE_WRITE);
         
         avg1 = SumOne / counter;
+        avg1=correction(avg1,1);
+        
         avg2 = SumTwo / counter;
+        avg2=correction(avg2,2);
+        
         TempAvg1 = SumThree / counter;
+        TempAvg1=correction(TempAvg1,3);
+        TempAvg1=CalcResistance(TempAvg1);
+        TempAvg1=realTemp(TempAvg1);
+        
+        
         TempAvg2= SumFour / counter;
+        TempAvg2=correction(TempAvg2,4);
+        TempAvg2=CalcResistance(TempAvg2);
+        TempAvg2=realTemp(TempAvg2);
         
         PrintTime_Serial();
         wiredSerial.print(" ");
         wiredSerial.print(calcWm2(avg1, cal1), 4);
+        
         wirelessSerial.print(" ");
-        wirelessSerial.println(calcWm2(avg1, cal1), 2);
+        wirelessSerial.println(calcWm2(avg1, cal1), 4);
         
         
         PrintTime_File();
@@ -549,16 +747,24 @@ void loop() {
         
         wiredSerial.print(" , ");
         wiredSerial.print(" ");
-        wiredSerial.println(calcWm2_PIR(avg2, cal2), 4);
+        wiredSerial.println(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
         
         logfile.print(",");
-        logfile.println(calcWm2_PIR(avg2, cal2), 4);
+        logfile.println(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
         
         
-        SumTwo = 0;
-        SumOne = 0;
-        counter = 0;
+        SumTwo,SumOne,SumThree,SumFour,counter=0;
+        
         logfile.close();
     }
+  
+    if(check_temp_board()==1){
+        
+        wiredSerial.println("FAN IS RUNNING CIRCUIT MIGHT BE TOO HOT FOR STABLE MEASSUREMENTS!!");
+    
+    }
+
     
 }
+
+
