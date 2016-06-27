@@ -44,7 +44,8 @@ const unsigned int MAX_INPUT = 50;
 double v_ref = 5.0;
 double input_one = 0.0;
 double input_two = 0.0;
-double temp1,temp2=0.0;
+double temp1=0.0;
+double temp2=0.0;
 double SumOne = 0;
 double SumTwo = 0;
 double SumThree,SumFour =0.0;
@@ -59,7 +60,7 @@ double C1=0.0010295;
 double C2=0.0002391;
 double C3=0.0000001568;
 
-double Coef[14];
+double Coef[10];
 double gain1;
 double gain2;
 
@@ -80,7 +81,7 @@ int _dayWeek;
 int _hr;
 int _min;
 int _sec;
-int counter = 0; //NEEDS TO BE CHANGED
+int counter = 0;
 int whichCoef;
 /*------------------*/
 
@@ -143,8 +144,8 @@ void read_cal_file(){
             wiredSerial.println(Coef[whichCoef], 6);
             whichCoef++;
         }
-        gain1=Coef[12];
-        gain2=Coef[13];
+        gain1=Coef[9];
+        gain2=Coef[10];
         
         // close the file:
         myFile.close();
@@ -157,59 +158,30 @@ void read_cal_file(){
 
 double correction(double input,int AD_used){
     
-    int index1,index2,index3;
+    int index1,index2;
     
     if(AD_used==1){
-       // wiredSerial.println("Correcting ADC 1");
         index1=0;
         index2=1;
-        index3=2;
-      
-       // wiredSerial.println("Using Coefs:");
-       // wiredSerial.print(Coef[index1]);
-       // wiredSerial.print(Coef[index2]);
-       // wiredSerial.print(Coef[index3]);
         
     } else if(AD_used==2){
-    
-       // wiredSerial.println("Correcting ADC 2");
-        index1=3;
-        index2=4;
-        index3=5;
-        
-       // wiredSerial.println("Using Coefs:");
-       // wiredSerial.print(Coef[index1]);
-       // wiredSerial.print(Coef[index2]);
-       // wiredSerial.print(Coef[index3]);
+ 
+        index1=2;
+        index2=3;
         
     } else if(AD_used==3){
-        
-       // wiredSerial.println("Correcting ADC 3");
+
+        index1=4;
+        index2=5;
+
+    } else if(AD_used==4){
         index1=6;
         index2=7;
-        index3=8;
-        
-       // wiredSerial.println("Using Coefs:");
-       // wiredSerial.print(Coef[index1]);
-       // wiredSerial.print(Coef[index2]);
-       // wiredSerial.print(Coef[index3]);
-    } else if(AD_used==4){
-        
-        //wiredSerial.println("Correcting ADC 4");
-        index1=9;
-        index2=10;
-        index3=11;
-        
-        //wiredSerial.println("Using Coefs:");
-        //wiredSerial.print(Coef[index1]);
-        //wiredSerial.print(Coef[index2]);
-        //wiredSerial.print(Coef[index3]);
     }
     
+    double corrected = (Coef[index1]*input)-(Coef[index2]);
     
-    double corrected = (Coef[index1]*pow(input,2))+(Coef[index2]*input)+Coef[index3];
-    wiredSerial.println("The corrected value is: ");
-    wiredSerial.println(corrected);
+    return corrected;///CHANGE THIS BACK TO CORRECTED LATER
 
 }
 
@@ -257,7 +229,7 @@ double meassure(int chip) {
     }
     digitalWrite(chip, HIGH);
     delay(20);
-    volt=1; //TAKE THIS OUT BEFORE!!!!!!!
+    //volt=0.91512; //TAKE THIS OUT BEFORE!!!!!!!
     return volt;
     
 }
@@ -265,16 +237,15 @@ double meassure(int chip) {
 void calibrate(){
     int i=0;
     float volt_wanted=0.00;
-    int AD_num=1;
     
     wiredSerial.println("YOU'VE ENTERED CALIBRATION MODE!!!! -> MUST BE CONNECTED DIRECTLY TO ADC");
     wiredSerial.println("MUST ONLY BE DONE ONCE");
     wiredSerial.println("*********************************************************************************");
     wiredSerial.println("\n");
     
-    wiredSerial.println("Starting Calibration for A/D #1 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Starting Calibration for A/D #1 obtaining 5 values type '1' to advance to the next sample");
     wiredSerial.println("Set input volatge to the requested values:");
-    while(i<=50){
+    while(i<=5){
         wiredSerial.print("Sample #");
         wiredSerial.print(i);
         wiredSerial.print(" should be: ");
@@ -287,15 +258,15 @@ void calibrate(){
         wiredSerial.println(meassure(sensorOne));
         if(next == 1){
         i++;
-            volt_wanted=volt_wanted+0.1;
+            volt_wanted=volt_wanted+1;
     }
     }
     i=0;
     volt_wanted=0.00;
     
-    wiredSerial.println("Starting Calibration for A/D #2 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Starting Calibration for A/D #2 obtaining 5 values type '1' to advance to the next sample");
     wiredSerial.println("Set input volatge to the requested values:");
-    while(i<=50){
+    while(i<=5){
         wiredSerial.print("Sample #");
         wiredSerial.print(i);
         wiredSerial.print(" should be: ");
@@ -308,15 +279,15 @@ void calibrate(){
         wiredSerial.println(meassure(sensorTwo));
         if(next == 1){
             i++;
-            volt_wanted=volt_wanted+0.1;
+            volt_wanted=volt_wanted+1;
         }
     }
     i=0;
     volt_wanted=0.00;
     
-    wiredSerial.println("Starting Calibration for A/D #3 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Starting Calibration for A/D #3 obtaining 5 values type '1' to advance to the next sample");
     wiredSerial.println("Set input volatge to the requested values:");
-    while(i<=50){
+    while(i<=5){
         wiredSerial.print("Sample #");
         wiredSerial.print(i);
         wiredSerial.print(" should be: ");
@@ -329,15 +300,15 @@ void calibrate(){
         wiredSerial.println(meassure(sensorThree));
         if(next == 1){
             i++;
-            volt_wanted=volt_wanted+0.1;
+            volt_wanted=volt_wanted+1;
         }
     }
     i=0;
     volt_wanted=0.00;
     
-    wiredSerial.println("Starting Calibration for A/D #4 obtaining 50 values type '1' to advance to the next sample");
+    wiredSerial.println("Starting Calibration for A/D #4 obtaining 5 values type '1' to advance to the next sample");
     wiredSerial.println("Set input volatge to the requested values:");
-    while(i<=50){
+    while(i<=5){
         wiredSerial.print("Sample #");
         wiredSerial.print(i);
         wiredSerial.print(" should be: ");
@@ -350,7 +321,7 @@ void calibrate(){
         wiredSerial.println(meassure(sensorFour));
         if(next == 1){
             i++;
-            volt_wanted=volt_wanted+0.1;
+            volt_wanted=volt_wanted+1;
         }
     }
     i=0;
@@ -564,8 +535,8 @@ void setRTC() {
         setTemp();
         
         wiredSerial.println("~~~~~~~~~~~STARTING MEASSURMENTS!~~~~~~~~~~");
-        wiredSerial.println("Month/Day/Year , Hour:Min:Sec , Measurment 1, Measurment 2 ");
-        logfile.println("Month,Day,Year,Hour,Min,Sec, Measurment 1, Measurment 2 ");
+        wiredSerial.println("Month/Day/Year , Hour:Min:Sec , Measurment 1, Measurment 2, Dome Tempreature, Case Tempreature");
+        logfile.println("Month,Day,Year,Hour,Min,Sec, Measurment 1, Measurment 2 , Dome Tempreature, Case Tempreature");
         logfile.close();
     } else {
         wiredSerial.println("ERROR WHEN WRITING TO FILE");
@@ -590,16 +561,16 @@ double calcWm2(double avg, double cal) {
     cal = cal / 1000000;
     double mV = (avg/gain1); //put in the gain that we have to remove
     double irradiance = (mV / cal);
-    return avg;
+    return irradiance;
 }
 
 double calcWm2_PIR(double avg, double cal,double T1,double T2) {
     double sigma = 5.6704e-8;
-    int k=4;
+    int k=3.75;
     cal = cal / 1000000;
-    double mV = (avg/gain2); //300 is the gain that we have to remove
+    double mV = (avg/gain2); // is the gain that we have to remove
     double irradiance = (mV / cal);
-    irradiance=irradiance+sigma*pow(T1,4)-sigma*(pow(T2,4)-pow(T1,4));
+    irradiance=irradiance+sigma*pow(T1,4)-((k*(sigma*(pow(T2,4)-pow(T1,4)))));
     return irradiance;
 }
 
@@ -716,16 +687,16 @@ void loop() {
         logfile = SD.open(filename, FILE_WRITE);
         
         avg1 = SumOne / counter;
+        
         avg1=correction(avg1,1);
         
         avg2 = SumTwo / counter;
         avg2=correction(avg2,2);
         
         TempAvg1 = SumThree / counter;
-        TempAvg1=correction(TempAvg1,3);
+        TempAvg1=correction(TempAvg1,4);
         TempAvg1=CalcResistance(TempAvg1);
         TempAvg1=realTemp(TempAvg1);
-        
         
         TempAvg2= SumFour / counter;
         TempAvg2=correction(TempAvg2,4);
@@ -735,25 +706,48 @@ void loop() {
         PrintTime_Serial();
         wiredSerial.print(" ");
         wiredSerial.print(calcWm2(avg1, cal1), 4);
+        wiredSerial.print(",");
+        wiredSerial.print(" ");
+        wiredSerial.print(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
+        wiredSerial.print(",");
+        wiredSerial.print(" ");
+        wiredSerial.print(TempAvg1, 4);
+        wiredSerial.print(",");
+        wiredSerial.print(" ");
+        wiredSerial.println(TempAvg2, 4);
         
         wirelessSerial.print(" ");
-        wirelessSerial.println(calcWm2(avg1, cal1), 4);
-        
+        wirelessSerial.print(calcWm2(avg1, cal1), 4);
+        wirelessSerial.print(",");
+        wirelessSerial.print(" ");
+        wirelessSerial.print(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
+        wirelessSerial.print(",");
+        wirelessSerial.print(" ");
+        wirelessSerial.print(TempAvg1, 4);
+        wirelessSerial.print(",");
+        wirelessSerial.print(" ");
+        wirelessSerial.println(TempAvg2, 4);
+       
         
         PrintTime_File();
-        logfile.print(",");
+        logfile.print(" ");
         logfile.print(calcWm2(avg1, cal1), 4);
-        
-        
-        wiredSerial.print(" , ");
-        wiredSerial.print(" ");
-        wiredSerial.println(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
-        
         logfile.print(",");
-        logfile.println(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
+        logfile.print(" ");
+        logfile.print(calcWm2_PIR(avg2, cal2,TempAvg1,TempAvg2), 4);
+        logfile.print(",");
+        logfile.print(" ");
+        logfile.print(TempAvg1, 4);
+        logfile.print(",");
+        logfile.print(" ");
+        logfile.println(TempAvg2, 4);
+
         
-        
-        SumTwo,SumOne,SumThree,SumFour,counter=0;
+        SumTwo=0;
+        SumOne=0;
+        SumThree=0;
+        SumFour=0;
+        counter=0;
         
         logfile.close();
     }
